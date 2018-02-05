@@ -1,0 +1,21 @@
+---
+applications:
+#- name: pasiphae
+#  memory: 256M
+#  instances: 1
+#  command: bundle exec rake cf:on_first_instance db:migrate && bundle exec rails s -p $PORT -e production
+#  buildpack: ruby_buildpack
+#  services:
+#  - Pasiphae_DB
+#  - Pasiphae_Redis
+
+- name: tesla_worker
+  memory: 256M
+  instances: 1
+  path: .
+  command: invoke monitor
+  no-route: true
+  health-check-type: none
+  buildpack: python_buildpack
+  services:
+  - tesla_mongo
