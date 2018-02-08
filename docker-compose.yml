@@ -4,10 +4,12 @@ services:
     build: .
     command: invoke monitor
     links:
-      - mongo
+      - database
     environment:
       DB_HOST: database
       DB_PASSWORD: ${PG_PASS}
+      TESLA_EMAIL: ${TESLA_EMAIL}
+      TESLA_PASS: ${TESLA_PASS}
 
   database:
     image: "postgres:latest"

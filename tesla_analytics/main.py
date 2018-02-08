@@ -6,4 +6,5 @@ app.config['SQLALCHEMY_DATABASE_URI'] = "postgres://tesla:{passwd}@{host}/tesla"
     passwd=os.getenv("DB_PASSWORD"),
     host=os.getenv("DB_HOST"),
 )
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

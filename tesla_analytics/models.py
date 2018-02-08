@@ -12,7 +12,7 @@ class ChargeState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
-        timestamp = datetime.fromtimestamp(data.pop("timestamp"))
+        timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         super(ChargeState, self).__init__(timestamp=timestamp, data=data)
 
 
@@ -22,7 +22,7 @@ class ClimateState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
-        timestamp = datetime.fromtimestamp(data.pop("timestamp"))
+        timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         super(ClimateState, self).__init__(timestamp=timestamp, data=data)
 
 
@@ -38,7 +38,7 @@ class DriveState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
-        timestamp = datetime.fromtimestamp(data.pop("timestamp"))
+        timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         gps_as_of = datetime.fromtimestamp(data.pop("gps_as_of"))
         latitude = datetime.fromtimestamp(data.pop("latitude"))
         longitude = datetime.fromtimestamp(data.pop("longitude"))
@@ -64,5 +64,5 @@ class VehicleState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
-        timestamp = datetime.fromtimestamp(data.pop("timestamp"))
+        timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         super(VehicleState, self).__init__(timestamp=timestamp, data=data)
