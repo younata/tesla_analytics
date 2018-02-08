@@ -1,11 +1,12 @@
 import os
 
 import time
-from logging import Logger
+from logging import Logger, INFO
+from typing import Callable
 from urllib import error as urlliberror
 from invoke import task
 
-from tesla_analytics.storage_service import StorageService
+from tesla_analytics.models import ChargeState, db, ClimateState, DriveState, VehicleState
 from tesla_analytics.tesla_service import TeslaService
 
 
@@ -14,8 +15,13 @@ LOG = Logger(__name__)
 
 @task
 def monitor(ctx):
-    storage_service = StorageService(os.environ["STORAGE_URI"])
+    LOG.setLevel(INFO)
     tesla_service = TeslaService(os.environ["TESLA_EMAIL"], os.environ["TESLA_PASS"])
+
+    try:
+        db.create_all()
+    except:
+        pass  # eh
 
     vehicle_id = os.getenv("VEHICLE_ID", tesla_service.vehicles()[0]["id"])
 
@@ -32,10 +38,11 @@ def monitor(ctx):
             time.sleep(120)
             continue
 
-        storage_service.store("charge_state", charge)
-        storage_service.store("climate_state", climate)
-        storage_service.store("drive_state", position)
-        storage_service.store("vehicle_state", vehicle_state)
+        add_item_to_db(lambda: ChargeState(charge))
+        add_item_to_db(lambda: ClimateState(climate))
+        add_item_to_db(lambda: DriveState(position))
+        add_item_to_db(lambda: VehicleState(vehicle_state))
+        db.session.commit()
 
         wait = 15  # seconds
         if charge["charging_state"] == "Charging":
@@ -45,3 +52,10 @@ def monitor(ctx):
 
         LOG.info("Successfully pulled and stored car data, sleeping and trying again in %f minutes", wait/60)
         time.sleep(wait)
+
+
+def add_item_to_db(fn: Callable):
+    try:
+        db.session.add(fn())
+    except KeyError:
+        LOG.exception("Encountered KeyError while trying to store data")
