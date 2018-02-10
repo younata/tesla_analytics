@@ -40,11 +40,11 @@ class DriveState(db.Model):
     def __init__(self, data):
         timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         gps_as_of = datetime.fromtimestamp(data.pop("gps_as_of"))
-        latitude = datetime.fromtimestamp(data.pop("latitude"))
-        longitude = datetime.fromtimestamp(data.pop("longitude"))
-        power = datetime.fromtimestamp(data.pop("power"))
-        shift_state = datetime.fromtimestamp(data.pop("shift_state"))
-        speed = datetime.fromtimestamp(data.pop("speed"))
+        latitude = data.pop("latitude")
+        longitude = data.pop("longitude")
+        power = data.pop("power")
+        shift_state = data.pop("shift_state")
+        speed = data.pop("speed")
 
         super(DriveState, self).__init__(
             timestamp=timestamp,
