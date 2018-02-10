@@ -47,7 +47,8 @@ def monitor(ctx):
         wait = 15  # seconds
         if charge["charging_state"] == "Charging":
             wait = 60  # 1 minute
-        elif charge["charging_state"] == "Disconnected" and position["shift_state"] is None:
+        elif charge["charging_state"] == "Disconnected" and \
+                (position.get("shift_state") is None or position.get("shift_state") == "P"):
             wait = 300  # 5 minutes
 
         LOG.info("Successfully pulled and stored car data, sleeping and trying again in %f minutes", wait/60)
