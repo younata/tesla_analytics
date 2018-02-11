@@ -15,3 +15,4 @@ Werkzeug
 psycopg2
 -e git+https://github.com/gglockner/teslajson.git#egg=teslajson
 invoke
+shared_context

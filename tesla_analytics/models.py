@@ -12,8 +12,12 @@ class ChargeState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
+        data = dict(data)
         timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         super(ChargeState, self).__init__(timestamp=timestamp, data=data)
+
+    def serialize(self):
+        return {**self.data, **{"timestamp": self.timestamp.isoformat()}}
 
 
 class ClimateState(db.Model):
@@ -22,8 +26,12 @@ class ClimateState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
+        data = dict(data)
         timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         super(ClimateState, self).__init__(timestamp=timestamp, data=data)
+
+    def serialize(self):
+        return {**self.data, **{"timestamp": self.timestamp.isoformat()}}
 
 
 class DriveState(db.Model):
@@ -38,6 +46,7 @@ class DriveState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
+        data = dict(data)
         timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         gps_as_of = datetime.fromtimestamp(data.pop("gps_as_of"))
         latitude = data.pop("latitude")
@@ -57,6 +66,17 @@ class DriveState(db.Model):
             data=data
         )
 
+    def serialize(self):
+        return {**self.data, **{
+            "timestamp": self.timestamp.isoformat(),
+            "gps_as_of": self.gps_as_of.isoformat(),
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "power": self.power,
+            "shift_state": self.shift_state,
+            "speed": self.speed,
+        }}
+
 
 class VehicleState(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,5 +84,9 @@ class VehicleState(db.Model):
     data = db.Column(db.JSON)
 
     def __init__(self, data):
+        data = dict(data)
         timestamp = datetime.fromtimestamp(data.pop("timestamp") / 1000.0)
         super(VehicleState, self).__init__(timestamp=timestamp, data=data)
+
+    def serialize(self):
+        return {**self.data, **{"timestamp": self.timestamp.isoformat()}}

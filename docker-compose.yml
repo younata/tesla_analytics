@@ -1,5 +1,15 @@
 version: '2'
 services:
+  frontend:
+    build: .
+    command: invoke web
+    links:
+      - database
+    environment:
+      DB_HOST: database
+      DB_PASSWORD: ${PG_PASS}
+      API_PASSWORD: ${API_PASS}
+
   worker:
     build: .
     command: invoke monitor

@@ -6,6 +6,8 @@ from typing import Callable
 from urllib import error as urlliberror
 from invoke import task
 
+from tesla_analytics import api_controller
+from tesla_analytics.main import app
 from tesla_analytics.models import ChargeState, db, ClimateState, DriveState, VehicleState
 from tesla_analytics.tesla_service import TeslaService
 
@@ -14,14 +16,22 @@ LOG = Logger(__name__)
 
 
 @task
+def web(ctx):
+    LOG.setLevel(INFO)
+
+    create_tables()
+
+    app.register_blueprint(api_controller.blueprint, url_prefix="/api")
+
+    app.run()
+
+
+@task
 def monitor(ctx):
     LOG.setLevel(INFO)
     tesla_service = TeslaService(os.environ["TESLA_EMAIL"], os.environ["TESLA_PASS"])
 
-    try:
-        db.create_all()
-    except:
-        pass  # eh
+    create_tables()
 
     vehicle_id = os.getenv("VEHICLE_ID", tesla_service.vehicles()[0]["id"])
 
@@ -60,3 +70,10 @@ def add_item_to_db(fn: Callable):
         db.session.add(fn())
     except KeyError:
         LOG.exception("Encountered KeyError while trying to store data")
+
+
+def create_tables():
+    try:
+        db.create_all()
+    except:
+        pass  # eh
