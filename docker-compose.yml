@@ -2,30 +2,27 @@ version: '2'
 services:
   frontend:
     build: .
-    command: invoke web
+    command: python tasks.py web
     links:
       - database
     environment:
-      DB_HOST: database
-      DB_PASSWORD: ${PG_PASS}
-      API_PASSWORD: ${API_PASS}
+      DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
 
   worker:
     build: .
-    command: invoke monitor
+    command: python tasks.py monitor
     links:
       - database
     environment:
-      DB_HOST: database
-      DB_PASSWORD: ${PG_PASS}
+      DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
       TESLA_EMAIL: ${TESLA_EMAIL}
       TESLA_PASS: ${TESLA_PASS}
 
   database:
     image: "postgres:latest"
     environment:
-      POSTGRES_DB: tesla
-      POSTGRES_USER: tesla
+      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: ${PG_USER}
       POSTGRES_PASSWORD: ${PG_PASS}
       PGDATA: /data/db
     volumes:

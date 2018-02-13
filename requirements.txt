@@ -1,6 +1,8 @@
 attrs
 click
 Flask
+Flask-Migrate
+Flask-Script
 Flask-Testing
 Flask-SQLAlchemy
 itsdangerous
@@ -14,5 +16,4 @@ SQLAlchemy
 Werkzeug
 psycopg2
 -e git+https://github.com/gglockner/teslajson.git#egg=teslajson
-invoke
 shared_context

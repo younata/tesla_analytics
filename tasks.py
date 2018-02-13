@@ -4,7 +4,9 @@ import time
 from logging import Logger, INFO
 from typing import Callable
 from urllib import error as urlliberror
-from invoke import task
+
+from flask_script import Manager
+from flask_migrate import Migrate, MigrateCommand
 
 from tesla_analytics import api_controller
 from tesla_analytics.main import app
@@ -15,19 +17,24 @@ from tesla_analytics.tesla_service import TeslaService
 LOG = Logger(__name__)
 
 
-@task
-def web(ctx):
+manager = Manager(app)
+migrate = Migrate(app, db)
+manager.add_command('db', MigrateCommand)
+
+
+@manager.command
+def web():
     LOG.setLevel(INFO)
 
     create_tables()
 
     app.register_blueprint(api_controller.blueprint, url_prefix="/api")
 
-    app.run()
+    app.run(host="0.0.0.0")
 
 
-@task
-def monitor(ctx):
+@manager.command
+def monitor():
     LOG.setLevel(INFO)
     tesla_service = TeslaService(os.environ["TESLA_EMAIL"], os.environ["TESLA_PASS"])
 
@@ -77,3 +84,7 @@ def create_tables():
         db.create_all()
     except:
         pass  # eh
+
+
+if __name__ == "__main__":
+    manager.run()
