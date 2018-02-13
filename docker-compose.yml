@@ -1,10 +1,20 @@
 version: '2'
 services:
+  migrate:
+    build: .
+    command: python tasks.py db upgrade
+    links:
+      - database
+    environment:
+      DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
+
   frontend:
     build: .
     command: python tasks.py web
     links:
       - database
+    depends_on:
+      - "migrate"
     environment:
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
 
@@ -13,6 +23,8 @@ services:
     command: python tasks.py monitor
     links:
       - database
+    depends_on:
+      - "migrate"
     environment:
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
       TESLA_EMAIL: ${TESLA_EMAIL}
