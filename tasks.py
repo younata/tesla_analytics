@@ -37,7 +37,7 @@ def monitor():
 def create_user(email, password, tesla_email, tesla_password):
     user = User(
         email=email,
-        password_hash=bcrypt.hashpw(password, bcrypt.gensalt())
+        password_hash=bcrypt.hashpw(password.encode('utf8'), bcrypt.gensalt())
     )
     _update_users_vehicles(user, tesla_email, tesla_password)
 
