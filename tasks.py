@@ -4,7 +4,7 @@ import bcrypt
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
-from tesla_analytics import api_controller
+from tesla_analytics import api_controller, workers
 from tesla_analytics.main import app
 from tesla_analytics.models import db, User, Vehicle, ChargeState, ClimateState, DriveState, VehicleState
 from tesla_analytics.tesla_service import TeslaService
@@ -30,7 +30,7 @@ def web():
 def monitor():
     LOG.setLevel(INFO)
     while True:
-        monitor()
+        workers.monitor()
 
 
 @manager.command
@@ -57,13 +57,13 @@ def _update_users_vehicles(user, tesla_email, tesla_password):
         if stored_vehicle:
             stored_vehicle.vin = tesla_vehicle["vin"]
             stored_vehicle.color = tesla_vehicle["color"]
-            stored_vehicle.name = tesla_vehicle["name"]
+            stored_vehicle.name = tesla_vehicle["display_name"]
         else:
             stored_vehicle = Vehicle(
                 tesla_id=tesla_vehicle["id"],
                 vin=tesla_vehicle["vin"],
                 color=tesla_vehicle["color"],
-                name=tesla_vehicle["name"],
+                name=tesla_vehicle["display_name"],
                 user=user
             )
         db.session.add(stored_vehicle)

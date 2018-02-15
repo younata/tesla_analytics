@@ -39,13 +39,13 @@ def upgrade():
     )
 
     op.create_index(op.f('ix_vehicle_tesla_id'), 'vehicle', ['tesla_id'], unique=False)
-    op.add_column('charge_state', sa.Column('vehicle_id', sa.Integer(), nullable=False, server_default=vehicle_id))
+    op.add_column('charge_state', sa.Column('vehicle_id', sa.Integer(), nullable=False))
     op.create_foreign_key(None, 'charge_state', 'vehicle', ['vehicle_id'], ['id'])
-    op.add_column('climate_state', sa.Column('vehicle_id', sa.Integer(), nullable=False, server_default=vehicle_id))
+    op.add_column('climate_state', sa.Column('vehicle_id', sa.Integer(), nullable=False))
     op.create_foreign_key(None, 'climate_state', 'vehicle', ['vehicle_id'], ['id'])
-    op.add_column('drive_state', sa.Column('vehicle_id', sa.Integer(), nullable=False, server_default=vehicle_id))
+    op.add_column('drive_state', sa.Column('vehicle_id', sa.Integer(), nullable=False))
     op.create_foreign_key(None, 'drive_state', 'vehicle', ['vehicle_id'], ['id'])
-    op.add_column('vehicle_state', sa.Column('vehicle_id', sa.Integer(), nullable=False, server_default=vehicle_id))
+    op.add_column('vehicle_state', sa.Column('vehicle_id', sa.Integer(), nullable=False))
     op.create_foreign_key(None, 'vehicle_state', 'vehicle', ['vehicle_id'], ['id'])
     # ### end Alembic commands ###
 

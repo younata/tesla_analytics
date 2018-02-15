@@ -2,7 +2,7 @@ version: '2'
 services:
   migrate:
     build: .
-    command: python tasks.py db upgrade
+    command: python tasks.py db upgrade head
     links:
       - database
     environment:
