@@ -35,4 +35,7 @@ class TeslaService(object):
         return self.__vehicle__(vehicle_id).data_request(command)
 
     def __vehicle__(self, vehicle_id: str) -> teslajson.Vehicle:
-        return [v for v in self.vehicles() if v["id"] == vehicle_id][0]
+        try:
+            return [v for v in self.vehicles() if str(v["id"]) == vehicle_id][0]
+        except IndexError:
+            raise ValueError("{} not found".format(vehicle_id))

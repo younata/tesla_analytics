@@ -57,6 +57,30 @@ class TestTeslaService(unittest.TestCase):
 
         subject.wake_up("vehicle_id_1")
 
+    def test_actually_tesla_ids_are_integers(self):
+        self._setup_for_access_token()
+
+        vehicle = self._create_vehicle(12345)
+        when(vehicle).wake_up()
+
+        subject = TeslaService(token="access_token")
+
+        try:
+            subject.wake_up("12345")
+        except ValueError:
+            assert False, "should convert types to be the same"
+
+    def test_raises_value_error_if_given_wrong_vehicle_id(self):
+        self._setup_for_access_token()
+
+        subject = TeslaService(token="access_token")
+
+        self.teslajson.vehicles = [
+        ]
+
+        with self.assertRaisesRegex(ValueError, "vehicle_id_1 not found"):
+            subject.wake_up("vehicle_id_1")
+
     def test_charge_state_fetches_and_returns_charge_data_for_vehicle(self):
         self._setup_for_access_token()
 

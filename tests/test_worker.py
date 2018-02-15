@@ -40,20 +40,25 @@ class TestMonitor(flask_testing.TestCase):
         vehicle_to_be_updated = create_vehicle("vehicle_1", user)
         vehicle_to_be_updated.next_update_time = datetime.now() - timedelta(seconds=10)
         vehicle_to_be_skipped = create_vehicle("vehicle_2", user)
+        not_yet_updated_vehicle = create_vehicle("vehicle_3", user)
+        not_yet_updated_vehicle.next_update_time = None
         skip_time = datetime.now() + timedelta(seconds=10)
         vehicle_to_be_skipped.next_update_time = skip_time
 
         db.session.add(vehicle_to_be_updated)
         db.session.add(vehicle_to_be_skipped)
+        db.session.add(not_yet_updated_vehicle)
         db.session.commit()
 
         update_time = datetime(2018, 2, 14, 20, 15, 2, 50)
 
         when(workers).vehicle_poller(vehicle_to_be_updated).thenReturn(update_time)
+        when(workers).vehicle_poller(not_yet_updated_vehicle).thenReturn(update_time)
 
         monitor()
 
         self.assertEqual(vehicle_to_be_updated.next_update_time, update_time)
+        self.assertEqual(not_yet_updated_vehicle.next_update_time, update_time)
         self.assertEqual(vehicle_to_be_skipped.next_update_time, skip_time)
 
         verifyStubbedInvocationsAreUsed()
@@ -292,6 +297,19 @@ class TestVehiclePoller(flask_testing.TestCase):
 
         with self.assertRaises(InvalidToken):
             vehicle_poller(vehicle)
+
+    def test_if_vehicle_data_fetch_returns_value_error_continues_and_returns_10_minutes_as_next_poll_time(self):
+        user = create_user()
+        vehicle = create_vehicle("vehicle_id", user)
+
+        when(self.service).wake_up("vehicle_id").thenRaise(ValueError("timeout"))
+        when(self.service).vehicles().thenReturn([])
+
+        now = datetime.now()
+        with patch("tesla_analytics.workers.current_time", return_value=now):
+            next_update_time = vehicle_poller(vehicle)
+
+        self.assertEqual(next_update_time, now + timedelta(minutes=10))
 
     def test_if_vehicle_wake_up_raises_error_returns_2_minutes_as_next_time_to_poll(self):
         user = create_user()

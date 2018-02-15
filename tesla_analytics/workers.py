@@ -13,7 +13,7 @@ LOG = Logger(__name__)
 def monitor():
     for user in User.query.filter(User.tesla_access_token.isnot(None)).all():
         for vehicle in user.vehicles:
-            if vehicle.next_update_time < current_time():
+            if vehicle.next_update_time is None or vehicle.next_update_time < current_time():
                 try:
                     vehicle.next_update_time = vehicle_poller(vehicle)
                 except InvalidToken:
@@ -44,6 +44,10 @@ def vehicle_poller(vehicle: Vehicle) -> datetime:
         climate = tesla_service.climate(vehicle_id)
         position = tesla_service.position(vehicle_id)
         vehicle_state = tesla_service.vehicle_state(vehicle_id)
+    except ValueError:
+        users_vehicles = [v['id'] for v in tesla_service.vehicles()]
+        LOG.exception("Vehicle id '{}' not found in user's vehicles ({})".format(vehicle_id, users_vehicles))
+        return current_time() + timedelta(minutes=10)
     except urlliberror.URLError:
         LOG.exception("Encountered error trying to fetch data, retrying in 2 minutes")
         return current_time() + timedelta(minutes=2)
