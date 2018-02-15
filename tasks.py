@@ -1,18 +1,13 @@
-import os
-
-import time
 from logging import Logger, INFO
-from typing import Callable
-from urllib import error as urlliberror
 
+import bcrypt
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
 from tesla_analytics import api_controller
 from tesla_analytics.main import app
-from tesla_analytics.models import ChargeState, db, ClimateState, DriveState, VehicleState
+from tesla_analytics.models import db, User, Vehicle, ChargeState, ClimateState, DriveState, VehicleState
 from tesla_analytics.tesla_service import TeslaService
-
 
 LOG = Logger(__name__)
 
@@ -26,8 +21,6 @@ manager.add_command('db', MigrateCommand)
 def web():
     LOG.setLevel(INFO)
 
-    create_tables()
-
     app.register_blueprint(api_controller.blueprint, url_prefix="/api")
 
     app.run(host="0.0.0.0")
@@ -36,54 +29,59 @@ def web():
 @manager.command
 def monitor():
     LOG.setLevel(INFO)
-    tesla_service = TeslaService(os.environ["TESLA_EMAIL"], os.environ["TESLA_PASS"])
-
-    create_tables()
-
-    vehicle_id = os.getenv("VEHICLE_ID", tesla_service.vehicles()[0]["id"])
-
     while True:
-        LOG.info("Fetching more data on car")
-        try:
-            tesla_service.wake_up(vehicle_id)
-            charge = tesla_service.charge_state(vehicle_id)
-            climate = tesla_service.climate(vehicle_id)
-            position = tesla_service.position(vehicle_id)
-            vehicle_state = tesla_service.vehicle_state(vehicle_id)
-        except urlliberror.URLError:
-            LOG.exception("Encountered error trying to fetch data, retrying in 2 minutes")
-            time.sleep(120)
-            continue
-
-        add_item_to_db(lambda: ChargeState(charge))
-        add_item_to_db(lambda: ClimateState(climate))
-        add_item_to_db(lambda: DriveState(position))
-        add_item_to_db(lambda: VehicleState(vehicle_state))
-        db.session.commit()
-
-        wait = 15  # seconds
-        if charge["charging_state"] == "Charging":
-            wait = 60  # 1 minute
-        elif charge["charging_state"] == "Disconnected" and \
-                (position.get("shift_state") is None or position.get("shift_state") == "P"):
-            wait = 300  # 5 minutes
-
-        LOG.info("Successfully pulled and stored car data, sleeping and trying again in %f minutes", wait/60)
-        time.sleep(wait)
+        monitor()
 
 
-def add_item_to_db(fn: Callable):
-    try:
-        db.session.add(fn())
-    except KeyError:
-        LOG.exception("Encountered KeyError while trying to store data")
+@manager.command
+def create_user(email, password, tesla_email, tesla_password):
+    user = User(
+        email=email,
+        password_hash=bcrypt.hashpw(password, bcrypt.gensalt())
+    )
+    _update_users_vehicles(user, tesla_email, tesla_password)
 
 
-def create_tables():
-    try:
-        db.create_all()
-    except:
-        pass  # eh
+@manager.command
+def login(email, tesla_email, tesla_password):
+    user = User.find_by(email=email)
+    _update_users_vehicles(user, tesla_email, tesla_password)
+
+
+def _update_users_vehicles(user, tesla_email, tesla_password):
+    tesla_service = TeslaService(email=tesla_email, password=tesla_password)
+    user.tesla_access_token = tesla_service.token
+
+    for tesla_vehicle in tesla_service.vehicles():
+        stored_vehicle = user.vehicles.find_by(tesla_id=tesla_vehicle["id"]).first()
+        if stored_vehicle:
+            stored_vehicle.vin = tesla_vehicle["vin"]
+            stored_vehicle.color = tesla_vehicle["color"]
+            stored_vehicle.name = tesla_vehicle["name"]
+        else:
+            stored_vehicle = Vehicle(
+                tesla_id=tesla_vehicle["id"],
+                vin=tesla_vehicle["vin"],
+                color=tesla_vehicle["color"],
+                name=tesla_vehicle["name"],
+                user=user
+            )
+        db.session.add(stored_vehicle)
+
+    vehicle_ids = [v["id"] for v in tesla_service.vehicles()]
+
+    for stored_vehicle in user.vehicles:
+        if stored_vehicle.tesla_id not in vehicle_ids:
+            db.session.delete(ChargeState.vehicle_id.equals(stored_vehicle.id))
+            db.session.delete(ClimateState.vehicle_id.equals(stored_vehicle.id))
+            db.session.delete(DriveState.vehicle_id.equals(stored_vehicle.id))
+            db.session.delete(VehicleState.vehicle_id.equals(stored_vehicle.id))
+            db.session.delete(stored_vehicle)
+            print("Deleting vehicle '{}' from user".format(stored_vehicle.name))
+
+    db.session.add(user)
+    db.session.commit()
+    print("Successfully logged in user!")
 
 
 if __name__ == "__main__":

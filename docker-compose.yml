@@ -27,11 +27,11 @@ services:
       - "migrate"
     environment:
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
-      TESLA_EMAIL: ${TESLA_EMAIL}
-      TESLA_PASS: ${TESLA_PASS}
 
   database:
     image: "postgres:latest"
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: ${PG_DB}
       POSTGRES_USER: ${PG_USER}

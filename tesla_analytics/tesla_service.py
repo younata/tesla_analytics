@@ -2,8 +2,16 @@ import teslajson
 
 
 class TeslaService(object):
-    def __init__(self, email, password):
-        self.connection = teslajson.Connection(email, password)
+    def __init__(self, email='', password='', token=''):
+        self.connection = teslajson.Connection(
+            email=email,
+            password=password,
+            access_token=token
+        )
+
+    @property
+    def token(self):
+        return self.connection.access_token
 
     def vehicles(self):
         return self.connection.vehicles

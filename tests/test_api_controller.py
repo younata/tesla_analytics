@@ -9,6 +9,7 @@ from shared_context import behaves_like
 from tesla_analytics import api_controller
 from tesla_analytics.models import db, ChargeState, ClimateState, DriveState, VehicleState
 from tests.helpers import isoformat_timestamp
+from tests.test_worker import create_user, create_vehicle
 
 
 def requires_auth(self):
@@ -148,10 +149,12 @@ class APIChargeTests(flask_testing.TestCase):
 
     @staticmethod
     def _populate_charging(items: List[Dict]):
+        user = create_user()
+        vehicle = create_vehicle("vehicle", user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
-            db.session.add(ChargeState(state))
+            db.session.add(ChargeState(state, vehicle=vehicle))
         db.session.commit()
 
 
@@ -203,10 +206,12 @@ class APIClimateTests(flask_testing.TestCase):
 
     @staticmethod
     def _populate_database(items: List[Dict]):
+        user = create_user()
+        vehicle = create_vehicle("vehicle", user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
-            db.session.add(ClimateState(state))
+            db.session.add(ClimateState(state, vehicle=vehicle))
         db.session.commit()
 
 
@@ -275,11 +280,13 @@ class APIDriveTests(flask_testing.TestCase):
 
     @staticmethod
     def _populate_database(items: List[Dict]):
+        user = create_user()
+        vehicle = create_vehicle("vehicle", user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
             state["gps_as_of"] = int(state["gps_as_of"].timestamp())
-            db.session.add(DriveState(state))
+            db.session.add(DriveState(state, vehicle=vehicle))
         db.session.commit()
 
 
@@ -331,8 +338,10 @@ class APIVehicleTests(flask_testing.TestCase):
 
     @staticmethod
     def _populate_database(items: List[Dict]):
+        user = create_user()
+        vehicle = create_vehicle("vehicle", user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
-            db.session.add(VehicleState(state))
+            db.session.add(VehicleState(state, vehicle=vehicle))
         db.session.commit()
