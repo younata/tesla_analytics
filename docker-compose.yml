@@ -16,6 +16,7 @@ services:
     depends_on:
       - "migrate"
     environment:
+      JWT_SECRET: ${JWT_SECRET}
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
 
   worker:

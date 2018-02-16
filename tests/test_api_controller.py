@@ -1,25 +1,54 @@
+import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Callable
 
 import flask_testing
-import os
 from flask import Flask
 from shared_context import behaves_like
 
 from tesla_analytics import api_controller
+from tesla_analytics.api_controller import jwt
 from tesla_analytics.models import db, ChargeState, ClimateState, DriveState, VehicleState
 from tests.helpers import isoformat_timestamp
 from tests.test_worker import create_user, create_vehicle
 
 
-def requires_auth(self):
-    result = self.test_app.get(self.endpoint)
-    self.assert401(result)
+def requires_user_auth() -> List[Callable]:
+    def requires_auth(self):
+        result = self.test_app.get(self.endpoint)
+        self.assert401(result)
+        self.assertEqual(result.json, {"msg": "Missing Authorization Header"})
 
+    def requires_vehicle_id(self):
+        result = self.test_app.get(self.endpoint, headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())})
+        self.assert400(result)
 
-def requires_vehicle_id(self):
-    result = self.test_app.get(self.endpoint, headers={"X-APP-TOKEN": "test"})
-    self.assert400(result)
+    def returns_400_if_wrong_vehicle_id(self):
+        self.generate_items(1)
+        result = self.test_app.get(
+            "{endpoint}?vehicle_id=nonexistent".format(endpoint=self.endpoint),
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
+        )
+        self.assert400(result)
+        self.assertDictEqual(result.json, {"error": "Vehicle not found"})
+
+    def returns_400_if_vehicle_exists_but_does_not_belong_to_user(self):
+        other_user = create_user("other@example.com", "test_2")
+        create_vehicle("test_id", other_user)
+
+        result = self.test_app.get(
+            "{endpoint}?vehicle_id=test_id".format(endpoint=self.endpoint),
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
+        )
+        self.assert400(result)
+        self.assertDictEqual(result.json, {"error": "Vehicle not found"})
+
+    return [
+        requires_auth,
+        requires_vehicle_id,
+        returns_400_if_wrong_vehicle_id,
+        returns_400_if_vehicle_exists_but_does_not_belong_to_user
+    ]
 
 
 def paginates_results() -> List[Callable]:
@@ -28,7 +57,7 @@ def paginates_results() -> List[Callable]:
 
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id".format(endpoint=self.endpoint),
-            headers={"X-APP-TOKEN": "test"}
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
         )
 
         self.assert200(result)
@@ -38,7 +67,7 @@ def paginates_results() -> List[Callable]:
         expected = self.generate_items(101)
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id&page=2".format(endpoint=self.endpoint),
-            headers={"X-APP-TOKEN": "test"}
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
         )
 
         self.assert200(result)
@@ -50,7 +79,7 @@ def paginates_results() -> List[Callable]:
 
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id".format(endpoint=self.endpoint),
-            headers={"X-APP-TOKEN": "test"}
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
         )
 
         self.assert200(result)
@@ -67,7 +96,7 @@ def paginates_results() -> List[Callable]:
 
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id&page=2".format(endpoint=self.endpoint),
-            headers={"X-APP-TOKEN": "test"}
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
         )
 
         self.assert200(result)
@@ -86,7 +115,7 @@ def paginates_results() -> List[Callable]:
 
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id&page=3".format(endpoint=self.endpoint),
-            headers={"X-APP-TOKEN": "test"}
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
         )
 
         self.assert200(result)
@@ -102,18 +131,17 @@ def paginates_results() -> List[Callable]:
             sets_paging_headers_correctly_on_middle_page, sets_paging_headers_correctly_on_last_page]
 
 
-@behaves_like(requires_auth, requires_vehicle_id, *paginates_results())
-class APIChargeTests(flask_testing.TestCase):
-    endpoint = "/charge"
-
+class APITestCase(flask_testing.TestCase):
     def create_app(self):
         app = Flask(__name__)
         app.register_blueprint(api_controller.blueprint)
+        app.config['JWT_SECRET_KEY'] = "test"
+        jwt.init_app(app)
         app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
         return app
 
     def setUp(self):
-        super(APIChargeTests, self).setUp()
+        super(APITestCase, self).setUp()
         self.test_app = self.app.test_client()
 
         db.init_app(self.app)
@@ -122,21 +150,130 @@ class APIChargeTests(flask_testing.TestCase):
             db.drop_all()
             db.create_all()
 
-        old_api_token = os.getenv("API_TOKEN")
-        os.environ["API_TOKEN"] = "test"
-
-        def reset_api_token():
-            if old_api_token:
-                os.environ["API_TOKEN"] = old_api_token
-            else:
-                del os.environ["API_TOKEN"]
-        self.addCleanup(reset_api_token)
-
     def tearDown(self):
-        super(APIChargeTests, self).tearDown()
+        super(APITestCase, self).tearDown()
         with self.app.app_context():
             db.session.commit()
             db.drop_all()
+
+
+class APILoginTests(APITestCase):
+    def test_when_user_exists_and_password_matches_returns_access_token(self):
+        create_user()
+
+        result = self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        )
+
+        self.assert200(result)
+
+        self.assertIsNotNone(result.json.get("access_token"))
+
+    def test_when_doesnt_send_json_returns_400(self):
+        create_user()
+
+        result = self.test_app.post(
+            "/login",
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        )
+
+        self.assert400(result)
+        self.assertDictEqual(
+            result.json,
+            {"error": "Must be JSON"}
+        )
+
+    def test_when_user_doesnt_exist_returns_401(self):
+        result = self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        )
+
+        self.assert401(result)
+        self.assertDictEqual(
+            result.json,
+            {"error": "Wrong email or password"}
+        )
+
+    def test_when_password_is_wrong_returns_401(self):
+        create_user()
+        result = self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "not_test"
+            })
+        )
+
+        self.assert401(result)
+        self.assertDictEqual(
+            result.json,
+            {"error": "Wrong email or password"}
+        )
+
+    def test_when_email_is_left_out_returns_400(self):
+        create_user()
+        result = self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "password": "not_test"
+            })
+        )
+
+        self.assert400(result)
+        self.assertDictEqual(
+            result.json,
+            {"error": "Missing required parameter 'email'"}
+        )
+
+    def test_when_password_is_left_out_returns_400(self):
+        create_user()
+        result = self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com"
+            })
+        )
+
+        self.assert400(result)
+        self.assertDictEqual(
+            result.json,
+            {"error": "Missing required parameter 'password'"}
+        )
+
+
+@behaves_like(*requires_user_auth(), *paginates_results())
+class APIChargeTests(APITestCase):
+    endpoint = "/charge"
+
+    def setUp(self):
+        super(APIChargeTests, self).setUp()
+        self.user = create_user()
+
+    def access_token(self):
+        return self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        ).json.get("access_token")
 
     def generate_items(self, amount_to_generate: int) -> List[Dict]:
         charge_states = [
@@ -147,10 +284,8 @@ class APIChargeTests(flask_testing.TestCase):
 
         return [{"timestamp": isoformat_timestamp(state["timestamp"])} for state in charge_states]
 
-    @staticmethod
-    def _populate_charging(items: List[Dict]):
-        user = create_user()
-        vehicle = create_vehicle("vehicle", user)
+    def _populate_charging(self, items: List[Dict]):
+        vehicle = create_vehicle("test_id", self.user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
@@ -158,42 +293,23 @@ class APIChargeTests(flask_testing.TestCase):
         db.session.commit()
 
 
-@behaves_like(requires_auth, requires_vehicle_id, *paginates_results())
-class APIClimateTests(flask_testing.TestCase):
+@behaves_like(*requires_user_auth(), *paginates_results())
+class APIClimateTests(APITestCase):
     endpoint = "/climate"
-
-    def create_app(self):
-        app = Flask(__name__)
-        app.register_blueprint(api_controller.blueprint)
-        app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
-        return app
 
     def setUp(self):
         super(APIClimateTests, self).setUp()
-        self.test_app = self.app.test_client()
+        self.user = create_user()
 
-        db.init_app(self.app)
-        with self.app.app_context():
-            db.session.commit()
-            db.drop_all()
-            db.create_all()
-
-        old_api_token = os.getenv("API_TOKEN")
-        os.environ["API_TOKEN"] = "test"
-
-        def reset_api_token():
-            if old_api_token:
-                os.environ["API_TOKEN"] = old_api_token
-            else:
-                del os.environ["API_TOKEN"]
-
-        self.addCleanup(reset_api_token)
-
-    def tearDown(self):
-        super(APIClimateTests, self).tearDown()
-        with self.app.app_context():
-            db.session.commit()
-            db.drop_all()
+    def access_token(self):
+        return self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        ).json.get("access_token")
 
     def generate_items(self, amount_to_generate: int) -> List[Dict]:
         states = [
@@ -204,10 +320,8 @@ class APIClimateTests(flask_testing.TestCase):
 
         return [{"timestamp": isoformat_timestamp(state["timestamp"])} for state in states]
 
-    @staticmethod
-    def _populate_database(items: List[Dict]):
-        user = create_user()
-        vehicle = create_vehicle("vehicle", user)
+    def _populate_database(self, items: List[Dict]):
+        vehicle = create_vehicle("test_id", self.user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
@@ -215,42 +329,23 @@ class APIClimateTests(flask_testing.TestCase):
         db.session.commit()
 
 
-@behaves_like(requires_auth, requires_vehicle_id, *paginates_results())
-class APIDriveTests(flask_testing.TestCase):
+@behaves_like(*requires_user_auth(), *paginates_results())
+class APIDriveTests(APITestCase):
     endpoint = "/drive"
-
-    def create_app(self):
-        app = Flask(__name__)
-        app.register_blueprint(api_controller.blueprint)
-        app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
-        return app
 
     def setUp(self):
         super(APIDriveTests, self).setUp()
-        self.test_app = self.app.test_client()
+        self.user = create_user()
 
-        db.init_app(self.app)
-        with self.app.app_context():
-            db.session.commit()
-            db.drop_all()
-            db.create_all()
-
-        old_api_token = os.getenv("API_TOKEN")
-        os.environ["API_TOKEN"] = "test"
-
-        def reset_api_token():
-            if old_api_token:
-                os.environ["API_TOKEN"] = old_api_token
-            else:
-                del os.environ["API_TOKEN"]
-
-        self.addCleanup(reset_api_token)
-
-    def tearDown(self):
-        super(APIDriveTests, self).tearDown()
-        with self.app.app_context():
-            db.session.commit()
-            db.drop_all()
+    def access_token(self):
+        return self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        ).json.get("access_token")
 
     def generate_items(self, amount_to_generate: int) -> List[Dict]:
         states = [
@@ -278,10 +373,8 @@ class APIDriveTests(flask_testing.TestCase):
                 "speed": 0,
             } for state in states]
 
-    @staticmethod
-    def _populate_database(items: List[Dict]):
-        user = create_user()
-        vehicle = create_vehicle("vehicle", user)
+    def _populate_database(self, items: List[Dict]):
+        vehicle = create_vehicle("test_id", self.user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)
@@ -290,42 +383,23 @@ class APIDriveTests(flask_testing.TestCase):
         db.session.commit()
 
 
-@behaves_like(requires_auth, requires_vehicle_id, *paginates_results())
-class APIVehicleTests(flask_testing.TestCase):
+@behaves_like(*requires_user_auth(), *paginates_results())
+class APIVehicleTests(APITestCase):
     endpoint = "/vehicle"
-
-    def create_app(self):
-        app = Flask(__name__)
-        app.register_blueprint(api_controller.blueprint)
-        app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
-        return app
 
     def setUp(self):
         super(APIVehicleTests, self).setUp()
-        self.test_app = self.app.test_client()
+        self.user = create_user()
 
-        db.init_app(self.app)
-        with self.app.app_context():
-            db.session.commit()
-            db.drop_all()
-            db.create_all()
-
-        old_api_token = os.getenv("API_TOKEN")
-        os.environ["API_TOKEN"] = "test"
-
-        def reset_api_token():
-            if old_api_token:
-                os.environ["API_TOKEN"] = old_api_token
-            else:
-                del os.environ["API_TOKEN"]
-
-        self.addCleanup(reset_api_token)
-
-    def tearDown(self):
-        super(APIVehicleTests, self).tearDown()
-        with self.app.app_context():
-            db.session.commit()
-            db.drop_all()
+    def access_token(self):
+        return self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        ).json.get("access_token")
 
     def generate_items(self, amount_to_generate: int) -> List[Dict]:
         states = [
@@ -336,10 +410,8 @@ class APIVehicleTests(flask_testing.TestCase):
 
         return [{"timestamp": isoformat_timestamp(state["timestamp"])} for state in states]
 
-    @staticmethod
-    def _populate_database(items: List[Dict]):
-        user = create_user()
-        vehicle = create_vehicle("vehicle", user)
+    def _populate_database(self, items: List[Dict]):
+        vehicle = create_vehicle("test_id", self.user)
         for data in items:
             state = dict(data)
             state["timestamp"] = int(state["timestamp"].timestamp() * 1000)

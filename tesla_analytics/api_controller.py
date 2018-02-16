@@ -1,44 +1,74 @@
 from typing import List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
+import bcrypt
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_sqlalchemy import Pagination
 from sqlalchemy import desc
 
-from tesla_analytics.helpers import requires_api_token
-from tesla_analytics.models import ChargeState, ClimateState, DriveState, VehicleState
+from tesla_analytics.models import ChargeState, ClimateState, DriveState, VehicleState, User
 
 blueprint = Blueprint("APIController", __name__)
 
+jwt = JWTManager()
+
+
+@blueprint.route("/login", methods=["POST"])
+def login():
+    if not request.is_json:
+        return jsonify({"error": "Must be JSON"}), 400
+
+    email = request.json.get('email', None)
+    password = request.json.get('password', None)
+
+    if not email:
+        return jsonify({"error": "Missing required parameter 'email'"}), 400
+    if not password:
+        return jsonify({"error": "Missing required parameter 'password'"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"error": "Wrong email or password"}), 401
+
+    if bcrypt.checkpw(password.encode("utf-8"), bytes(user.password_hash, "utf-8")):
+        access_token = create_access_token(identity=email)
+        return jsonify(access_token=access_token), 200
+    return jsonify({"error": "Wrong email or password"}), 401
+
 
 @blueprint.route("/charge")
-@requires_api_token
+@jwt_required
 def charge():
     return _fetch_data(ChargeState)
 
 
 @blueprint.route("/climate")
-@requires_api_token
+@jwt_required
 def climate():
     return _fetch_data(ClimateState)
 
 
 @blueprint.route("/drive")
-@requires_api_token
+@jwt_required
 def drive():
     return _fetch_data(DriveState)
 
 
 @blueprint.route("/vehicle")
-@requires_api_token
+@jwt_required
 def vehicle():
     return _fetch_data(VehicleState)
 
 
 def _fetch_data(model):
+    user = User.query.filter_by(email=get_jwt_identity()).first()
     vehicle_id = request.args.get("vehicle_id")
     if not vehicle_id:
-        return "", 400
+        return jsonify({"error": "Missing required parameter 'vehicle_id'"}), 400
+    if vehicle_id not in [v.tesla_id for v in user.vehicles]:
+        return jsonify({"error": "Vehicle not found"}), 400
+
     data = model.query.order_by(desc(model.timestamp)).paginate(per_page=50)
     serialized = [model.serialize() for model in data.items]
 

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 from urllib import error as urlliberror
 
+import bcrypt
 import flask_testing
 from flask import Flask
 from mockito import mock, verifyStubbedInvocationsAreUsed, unstub, when, verifyNoUnwantedInteractions, expect
@@ -372,8 +373,13 @@ def create_vehicle(vehicle_id, user):
     return vehicle
 
 
-def create_user():
-    user = User(email="me@example.com", password_hash="678", tesla_access_token="token")
+def create_user(email="me@example.com", password="test"):
+    password_hash = bcrypt.hashpw(password.encode('utf8'), bcrypt.gensalt()).decode("utf-8")
+    user = User(
+        email=email,
+        password_hash=password_hash,
+        tesla_access_token="token"
+    )
     db.session.add(user)
     db.session.commit()
     return user

@@ -2,6 +2,7 @@ attrs
 bcrypt
 click
 Flask
+flask-jwt-extended
 Flask-Migrate
 Flask-Script
 Flask-Testing
