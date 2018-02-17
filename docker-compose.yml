@@ -10,7 +10,6 @@ services:
     volumes:
       - "/etc/nginx/conf.d"
       - "/etc/nginx/vhost.d"
-      - "/usr/share/nginx/html"
       - "./volumes/proxy/certs:/etc/nginx/certs:ro"
 
   nginx-gen:
@@ -47,7 +46,6 @@ services:
   frontend:
     restart: always
     build: .
-    command: gunicorn -w 4 tesla_analytics.main:application
     links:
       - database
     depends_on:
