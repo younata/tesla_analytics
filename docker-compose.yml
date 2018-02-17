@@ -1,5 +1,41 @@
 version: '2'
 services:
+  nginx:
+    restart: always
+    image: nginx
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/etc/nginx/conf.d"
+      - "/etc/nginx/vhost.d"
+      - "/usr/share/nginx/html"
+      - "./volumes/proxy/certs:/etc/nginx/certs:ro"
+
+  nginx-gen:
+    restart: always
+    image: jwilder/docker-gen
+    container_name: nginx-gen
+    volumes:
+      - "/var/run/docker.sock:/tmp/docker.sock:ro"
+      - "./volumes/proxy/templates/nginx.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro"
+    volumes_from:
+      - nginx
+    entrypoint: /usr/local/bin/docker-gen -notify-sighup nginx -watch -wait 5s:30s /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf
+
+  letsencrypt-nginx-proxy-companion:
+    restart: always
+    image: jrcs/letsencrypt-nginx-proxy-companion
+    container_name: letsencrypt-nginx-proxy-companion
+    volumes_from:
+      - nginx
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./volumes/proxy/certs:/etc/nginx/certs:rw"
+    environment:
+      - NGINX_DOCKER_GEN_CONTAINER=nginx-gen
+
   migrate:
     build: .
     command: python tasks.py db upgrade head
@@ -9,8 +45,9 @@ services:
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
 
   frontend:
+    restart: always
     build: .
-    command: python tasks.py web
+    command: gunicorn -w 4 tesla_analytics.main:application
     links:
       - database
     depends_on:
@@ -18,8 +55,14 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET}
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
+      VIRTUAL_HOST: ${HOST}
+      VIRTUAL_NETWORK: nginx-proxy
+      VIRTUAL_PORT: 8000
+      LETSENCRYPT_HOST: ${HOST}
+      LETSENCRYPT_EMAIL: ${EMAIL}
 
   worker:
+    restart: always
     build: .
     command: python tasks.py monitor
     links:
@@ -30,6 +73,7 @@ services:
       DB_URL: postgres://${PG_USER}:${PG_PASS}@database/${PG_DB}
 
   database:
+    restart: always
     image: "postgres:latest"
     ports:
       - "5432:5432"

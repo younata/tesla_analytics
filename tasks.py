@@ -5,8 +5,7 @@ import bcrypt
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
-from tesla_analytics import api_controller, workers
-from tesla_analytics.api_controller import jwt
+from tesla_analytics import workers
 from tesla_analytics.main import app
 from tesla_analytics.models import db, User, Vehicle, ChargeState, ClimateState, DriveState, VehicleState
 from tesla_analytics.tesla_service import TeslaService
@@ -17,16 +16,6 @@ LOG = Logger(__name__)
 manager = Manager(app)
 migrate = Migrate(app, db)
 manager.add_command('db', MigrateCommand)
-
-
-@manager.command
-def web():
-    LOG.setLevel(INFO)
-
-    app.register_blueprint(api_controller.blueprint, url_prefix="/api")
-    jwt.init_app(app)
-
-    app.run(host="0.0.0.0")
 
 
 @manager.command
