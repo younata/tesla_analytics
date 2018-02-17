@@ -1,7 +1,7 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
-from tesla_analytics.main import app
+from tesla_analytics.application import app
 
 db = SQLAlchemy(app)
 

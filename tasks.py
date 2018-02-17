@@ -6,7 +6,7 @@ from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
 from tesla_analytics import workers
-from tesla_analytics.main import app
+from tesla_analytics.application import app
 from tesla_analytics.models import db, User, Vehicle, ChargeState, ClimateState, DriveState, VehicleState
 from tesla_analytics.tesla_service import TeslaService
 
