@@ -1,0 +1,30 @@
+version: '2'
+services:
+  migrate:
+    build: .
+    command: python tasks.py db upgrade head
+    links:
+      - database
+    environment:
+      DB_URL: postgres://test_user:test_pass@database/test_db
+
+  frontend:
+    build: .
+    links:
+      - database
+    depends_on:
+      - "migrate"
+    ports:
+      - "8000:8000"
+    environment:
+      JWT_SECRET: test
+      DB_URL: postgres://test_user:test_pass@database/test_db
+
+  database:
+    image: "postgres:latest"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: test_db
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass

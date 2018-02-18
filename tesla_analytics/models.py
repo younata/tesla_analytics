@@ -29,6 +29,14 @@ class Vehicle(db.Model):
     drive_states = db.relation('DriveState', backref='vehicle')
     vehicle_states = db.relation('VehicleState', backref='vehicle')
 
+    def serialize(self):
+        return {
+            "vehicle_id": self.tesla_id,
+            "vin": self.vin,
+            "color": self.color,
+            "name": self.name,
+        }
+
 
 class ChargeState(db.Model):
     id = db.Column(db.Integer, primary_key=True)

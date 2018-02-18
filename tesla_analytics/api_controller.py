@@ -37,6 +37,13 @@ def login():
     return jsonify({"error": "Wrong email or password"}), 401
 
 
+@blueprint.route("/vehicles")
+@jwt_required
+def vehicles():
+    user = User.query.filter_by(email=get_jwt_identity()).first()
+    return jsonify([v.serialize() for v in user.vehicles])
+
+
 @blueprint.route("/charge")
 @jwt_required
 def charge():

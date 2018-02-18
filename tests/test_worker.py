@@ -270,7 +270,7 @@ class TestVehiclePoller(flask_testing.TestCase):
 
         self.assertEqual(next_update_time, now + timedelta(minutes=1))
 
-    def test_returns_5_minutes_later_as_next_time_to_poll_if_parked_and_not_charging(self):
+    def test_returns_10_minutes_later_as_next_time_to_poll_if_parked_and_not_charging(self):
         now = datetime.now()
 
         user = create_user()
@@ -285,7 +285,7 @@ class TestVehiclePoller(flask_testing.TestCase):
         with patch("tesla_analytics.workers.current_time", return_value=now):
             next_update_time = vehicle_poller(vehicle)
 
-        self.assertEqual(next_update_time, now + timedelta(minutes=5))
+        self.assertEqual(next_update_time, now + timedelta(minutes=10))
 
     # Sad Paths
 
@@ -366,8 +366,14 @@ class TestVehiclePoller(flask_testing.TestCase):
         return {"timestamp": int(timestamp), "vehicle": "yes"}
 
 
-def create_vehicle(vehicle_id, user):
-    vehicle = Vehicle(tesla_id=vehicle_id, vin="my_vin", user=user)
+def create_vehicle(vehicle_id, user, vin="my_vin", color=None, name=None):
+    vehicle = Vehicle(
+        tesla_id=vehicle_id,
+        vin=vin,
+        color=color,
+        name=name,
+        user=user
+    )
     db.session.add(vehicle)
     db.session.commit()
     return vehicle

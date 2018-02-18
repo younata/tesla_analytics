@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Callable
 
+import bcrypt
 import flask_testing
 from flask import Flask
 from shared_context import behaves_like
@@ -19,6 +20,12 @@ def requires_user_auth() -> List[Callable]:
         self.assert401(result)
         self.assertEqual(result.json, {"msg": "Missing Authorization Header"})
 
+    return [
+        requires_auth,
+    ]
+
+
+def requires_vehicle() -> List[Callable]:
     def requires_vehicle_id(self):
         result = self.test_app.get(self.endpoint, headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())})
         self.assert400(result)
@@ -44,10 +51,9 @@ def requires_user_auth() -> List[Callable]:
         self.assertDictEqual(result.json, {"error": "Vehicle not found"})
 
     return [
-        requires_auth,
         requires_vehicle_id,
         returns_400_if_wrong_vehicle_id,
-        returns_400_if_vehicle_exists_but_does_not_belong_to_user
+        returns_400_if_vehicle_exists_but_does_not_belong_to_user,
     ]
 
 
@@ -157,7 +163,7 @@ class APITestCase(flask_testing.TestCase):
             db.drop_all()
 
 
-class APILoginTests(APITestCase):
+class LoginTests(APITestCase):
     def test_when_user_exists_and_password_matches_returns_access_token(self):
         create_user()
 
@@ -257,12 +263,58 @@ class APILoginTests(APITestCase):
         )
 
 
-@behaves_like(*requires_user_auth(), *paginates_results())
-class APIChargeTests(APITestCase):
+@behaves_like(*requires_user_auth())
+class VehiclesTests(APITestCase):
+    endpoint = "/vehicles"
+    def setUp(self):
+        super(VehiclesTests, self).setUp()
+        self.user = create_user()
+
+    def access_token(self):
+        return self.test_app.post(
+            "/login",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps({
+                "email": "me@example.com",
+                "password": "test"
+            })
+        ).json.get("access_token")
+
+    def test_returns_all_vehicles_a_user_has(self):
+        other_user = create_user("other_email")
+        _ = create_vehicle("test_id", self.user, vin="1")
+        _ = create_vehicle("test_id_2", self.user, vin="2", color="Blue", name="name")
+        _ = create_vehicle("test_id_3", other_user)
+
+        result = self.test_app.get(
+            "/vehicles",
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
+        )
+
+        self.assert200(result)
+
+        self.assertEqual(result.json, [
+            {
+                "vehicle_id": "test_id",
+                "vin": "1",
+                "color": None,
+                "name": None,
+            },
+            {
+                "vehicle_id": "test_id_2",
+                "vin": "2",
+                "color": "Blue",
+                "name": "name",
+            }
+        ])
+
+
+@behaves_like(*requires_user_auth(), *requires_vehicle(), *paginates_results())
+class ChargeTests(APITestCase):
     endpoint = "/charge"
 
     def setUp(self):
-        super(APIChargeTests, self).setUp()
+        super(ChargeTests, self).setUp()
         self.user = create_user()
 
     def access_token(self):
@@ -293,12 +345,12 @@ class APIChargeTests(APITestCase):
         db.session.commit()
 
 
-@behaves_like(*requires_user_auth(), *paginates_results())
-class APIClimateTests(APITestCase):
+@behaves_like(*requires_user_auth(), *requires_vehicle(), *paginates_results())
+class ClimateTests(APITestCase):
     endpoint = "/climate"
 
     def setUp(self):
-        super(APIClimateTests, self).setUp()
+        super(ClimateTests, self).setUp()
         self.user = create_user()
 
     def access_token(self):
@@ -329,12 +381,12 @@ class APIClimateTests(APITestCase):
         db.session.commit()
 
 
-@behaves_like(*requires_user_auth(), *paginates_results())
-class APIDriveTests(APITestCase):
+@behaves_like(*requires_user_auth(), *requires_vehicle(), *paginates_results())
+class DriveTests(APITestCase):
     endpoint = "/drive"
 
     def setUp(self):
-        super(APIDriveTests, self).setUp()
+        super(DriveTests, self).setUp()
         self.user = create_user()
 
     def access_token(self):
@@ -383,12 +435,12 @@ class APIDriveTests(APITestCase):
         db.session.commit()
 
 
-@behaves_like(*requires_user_auth(), *paginates_results())
-class APIVehicleTests(APITestCase):
+@behaves_like(*requires_user_auth(), *requires_vehicle(), *paginates_results())
+class VehicleTests(APITestCase):
     endpoint = "/vehicle"
 
     def setUp(self):
-        super(APIVehicleTests, self).setUp()
+        super(VehicleTests, self).setUp()
         self.user = create_user()
 
     def access_token(self):

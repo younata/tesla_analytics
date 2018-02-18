@@ -36,6 +36,17 @@ def create_user(email, password, tesla_email, tesla_password):
 
 
 @manager.command
+def test_user(email, password):
+    user = User(
+        email=email,
+        password_hash=bcrypt.hashpw(password.encode('utf8'), bcrypt.gensalt()).decode("utf-8")
+    )
+    db.session.add(user)
+    db.session.commit()
+    print("Successfully added user!")
+
+
+@manager.command
 def login(email, tesla_email, tesla_password):
     user = User.find_by(email=email)
     _update_users_vehicles(user, tesla_email, tesla_password)
