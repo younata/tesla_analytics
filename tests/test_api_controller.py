@@ -2,7 +2,6 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Callable
 
-import bcrypt
 import flask_testing
 from flask import Flask
 from shared_context import behaves_like
@@ -58,8 +57,21 @@ def requires_vehicle() -> List[Callable]:
 
 
 def paginates_results() -> List[Callable]:
+    def returns_results_in_timeframe(self):
+        generated = self.generate_items(10)
+
+        result = self.test_app.get(
+            "{endpoint}?vehicle_id=test_id&start={early}&end={later}".format(endpoint=self.endpoint,
+                                                                               early=generated[7]["timestamp"],
+                                                                               later=generated[2]["timestamp"]),
+            headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
+        )
+
+        self.assert200(result)
+        self.assertListEqual(result.json, generated[2:8])
+
     def returns_latest_50_results(self):
-        expected = self.generate_items(51)
+        generated = self.generate_items(51)
 
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id".format(endpoint=self.endpoint),
@@ -67,10 +79,10 @@ def paginates_results() -> List[Callable]:
         )
 
         self.assert200(result)
-        self.assertListEqual(result.json, expected[:50])
+        self.assertListEqual(result.json, generated[:50])
 
     def pages_results_by_50(self):
-        expected = self.generate_items(101)
+        generated = self.generate_items(101)
         result = self.test_app.get(
             "{endpoint}?vehicle_id=test_id&page=2".format(endpoint=self.endpoint),
             headers={"AUTHORIZATION": "Bearer {}".format(self.access_token())}
@@ -78,7 +90,7 @@ def paginates_results() -> List[Callable]:
 
         self.assert200(result)
 
-        self.assertEqual(result.json, expected[50:100])
+        self.assertEqual(result.json, generated[50:100])
 
     def sets_paging_headers_correctly_on_page_1(self):
         self.generate_items(101)
@@ -133,8 +145,9 @@ def paginates_results() -> List[Callable]:
 
         self.assertEqual(result.headers["Link"], expected_link_header)
 
-    return [returns_latest_50_results, pages_results_by_50, sets_paging_headers_correctly_on_page_1,
-            sets_paging_headers_correctly_on_middle_page, sets_paging_headers_correctly_on_last_page]
+    return [returns_results_in_timeframe, returns_latest_50_results, pages_results_by_50,
+            sets_paging_headers_correctly_on_page_1, sets_paging_headers_correctly_on_middle_page,
+            sets_paging_headers_correctly_on_last_page]
 
 
 class APITestCase(flask_testing.TestCase):
@@ -266,6 +279,7 @@ class LoginTests(APITestCase):
 @behaves_like(*requires_user_auth())
 class VehiclesTests(APITestCase):
     endpoint = "/vehicles"
+
     def setUp(self):
         super(VehiclesTests, self).setUp()
         self.user = create_user()
@@ -417,7 +431,7 @@ class DriveTests(APITestCase):
         return [
             {
                 "timestamp": isoformat_timestamp(state["timestamp"]),
-                "gps_as_of": datetime.fromtimestamp(int(state["gps_as_of"].timestamp())).isoformat(),
+                "gps_as_of": datetime.fromtimestamp(int(state["gps_as_of"].timestamp())).isoformat() + "Z",
                 "latitude": 37.548271,
                 "longitude": -121.988571,  # Tesla Factory, Fremont
                 "power": 0,

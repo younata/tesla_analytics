@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -76,7 +77,15 @@ def _fetch_data(model):
     if vehicle_id not in [v.tesla_id for v in user.vehicles]:
         return jsonify({"error": "Vehicle not found"}), 400
 
-    data = model.query.order_by(desc(model.timestamp)).paginate(per_page=50)
+    if "start" in request.args and "end" in request.args:
+        start_time = datetime.strptime(request.args["start"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        end_time = datetime.strptime(request.args["end"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        assert start_time < end_time
+        query = model.query.filter(model.timestamp.between(start_time, end_time))
+    else:
+        query = model.query.order_by(desc(model.timestamp))
+
+    data = query.paginate(per_page=50)
     serialized = [model.serialize() for model in data.items]
 
     headers = {"Link": ", ".join(

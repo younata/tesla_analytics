@@ -50,7 +50,7 @@ class ChargeState(db.Model):
         super(ChargeState, self).__init__(timestamp=timestamp, data=data, vehicle=vehicle)
 
     def serialize(self):
-        return {**self.data, **{"timestamp": self.timestamp.isoformat()}}
+        return {**self.data, **{"timestamp": self.timestamp.isoformat() + "Z"}}
 
 
 class ClimateState(db.Model):
@@ -65,7 +65,7 @@ class ClimateState(db.Model):
         super(ClimateState, self).__init__(timestamp=timestamp, data=data, vehicle=vehicle)
 
     def serialize(self):
-        return {**self.data, **{"timestamp": self.timestamp.isoformat()}}
+        return {**self.data, **{"timestamp": self.timestamp.isoformat() + "Z"}}
 
 
 class DriveState(db.Model):
@@ -104,8 +104,8 @@ class DriveState(db.Model):
 
     def serialize(self):
         return {**self.data, **{
-            "timestamp": self.timestamp.isoformat(),
-            "gps_as_of": self.gps_as_of.isoformat(),
+            "timestamp": self.timestamp.isoformat() + "Z",
+            "gps_as_of": self.gps_as_of.isoformat() + "Z",
             "latitude": self.latitude,
             "longitude": self.longitude,
             "power": self.power,
@@ -126,4 +126,4 @@ class VehicleState(db.Model):
         super(VehicleState, self).__init__(timestamp=timestamp, data=data, vehicle=vehicle)
 
     def serialize(self):
-        return {**self.data, **{"timestamp": self.timestamp.isoformat()}}
+        return {**self.data, **{"timestamp": self.timestamp.isoformat() + "Z"}}
