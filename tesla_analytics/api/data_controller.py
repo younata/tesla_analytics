@@ -51,15 +51,22 @@ def _fetch_data(model):
     if vehicle_id not in [v.tesla_id for v in user.vehicles]:
         return jsonify({"error": "Vehicle not found"}), 400
 
-    if "start" in request.args and "end" in request.args:
-        start_time = datetime.strptime(request.args["start"], "%Y-%m-%dT%H:%M:%S.%fZ")
-        end_time = datetime.strptime(request.args["end"], "%Y-%m-%dT%H:%M:%S.%fZ")
-        assert start_time < end_time
-        query = model.query.filter(model.timestamp.between(start_time, end_time))
+    if "after" in request.args and "before" in request.args:
+        after = datetime.strptime(request.args["after"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        before = datetime.strptime(request.args["before"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        if before < after:
+            return jsonify({"error": "Before must be earlier than after"}), 400
+        query = model.query.filter(model.timestamp.between(after, before))
+    elif "after" in request.args:
+        after = datetime.strptime(request.args["after"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        query = model.query.filter(model.timestamp > after)
+    elif "before" in request.args:
+        before = datetime.strptime(request.args["before"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        query = model.query.filter(model.timestamp < before)
     else:
-        query = model.query.order_by(desc(model.timestamp))
+        query = model.query
 
-    data = query.paginate(per_page=50)
+    data = query.order_by(desc(model.timestamp)).paginate(per_page=50)
     serialized = [model.serialize() for model in data.items]
 
     headers = {"Link": ", ".join(
