@@ -16,6 +16,7 @@ class TestMonitor(flask_testing.TestCase):
     def create_app(self):
         app = Flask(__name__)
         app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         return app
 
     def setUp(self):
@@ -119,6 +120,7 @@ class TestMonitor(flask_testing.TestCase):
 class TestNotifyUserOfBadToken(flask_testing.TestCase):
     def create_app(self):
         app = Flask(__name__)
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
         return app
 
@@ -143,6 +145,7 @@ class TestNotifyUserOfBadToken(flask_testing.TestCase):
 class TestVehiclePoller(flask_testing.TestCase):
     def create_app(self):
         app = Flask(__name__)
+        app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
         app.config["SQLALCHEMY_DATABASE_URI"] = "postgres://localhost"
         return app
 
@@ -207,21 +210,21 @@ class TestVehiclePoller(flask_testing.TestCase):
         self.assertEqual(len(vehicle.charge_states), 1)
         self.assertEqual(
             vehicle.charge_states[0].serialize(),
-            {"timestamp": now.isoformat(), "charging_state": "None"}
+            {"timestamp": now.isoformat() + "Z", "charging_state": "None"}
         )
 
         self.assertEqual(len(vehicle.climate_states), 1)
         self.assertEqual(
             vehicle.climate_states[0].serialize(),
-            {"timestamp": now.isoformat(), "climate": "yes"}
+            {"timestamp": now.isoformat() + "Z", "climate": "yes"}
         )
 
         self.assertEqual(len(vehicle.drive_states), 1)
         self.assertEqual(
             vehicle.drive_states[0].serialize(),
             {
-                "timestamp": now.isoformat(),
-                "gps_as_of": datetime.fromtimestamp(int(now.timestamp())).isoformat(),
+                "timestamp": now.isoformat() + "Z",
+                "gps_as_of": datetime.fromtimestamp(int(now.timestamp())).isoformat() + "Z",
                 "latitude": 37.548271,
                 "longitude": -121.988571,  # Tesla Factory, Fremont
                 "power": 0,
@@ -233,7 +236,7 @@ class TestVehiclePoller(flask_testing.TestCase):
         self.assertEqual(len(vehicle.vehicle_states), 1)
         self.assertEqual(
             vehicle.vehicle_states[0].serialize(),
-            {"timestamp": now.isoformat(), "vehicle": "yes"}
+            {"timestamp": now.isoformat() + "Z", "vehicle": "yes"}
         )
 
     def test_returns_15_seconds_later_as_next_time_to_poll_if_driving(self):

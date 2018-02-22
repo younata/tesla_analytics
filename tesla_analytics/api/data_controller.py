@@ -2,40 +2,14 @@ from datetime import datetime
 from typing import List
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
-import bcrypt
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_sqlalchemy import Pagination
 from sqlalchemy import desc
 
 from tesla_analytics.models import ChargeState, ClimateState, DriveState, VehicleState, User
 
-blueprint = Blueprint("APIController", __name__)
-
-jwt = JWTManager()
-
-
-@blueprint.route("/login", methods=["POST"])
-def login():
-    if not request.is_json:
-        return jsonify({"error": "Must be JSON"}), 400
-
-    email = request.json.get('email', None)
-    password = request.json.get('password', None)
-
-    if not email:
-        return jsonify({"error": "Missing required parameter 'email'"}), 400
-    if not password:
-        return jsonify({"error": "Missing required parameter 'password'"}), 400
-
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        return jsonify({"error": "Wrong email or password"}), 401
-
-    if bcrypt.checkpw(password.encode("utf-8"), bytes(user.password_hash, "utf-8")):
-        access_token = create_access_token(identity=email)
-        return jsonify(access_token=access_token), 200
-    return jsonify({"error": "Wrong email or password"}), 401
+blueprint = Blueprint("DataController", __name__)
 
 
 @blueprint.route("/vehicles")

@@ -63,7 +63,7 @@ def vehicle_poller(vehicle: Vehicle) -> datetime:
         return current_time() + timedelta(minutes=1)
     elif charge["charging_state"] == "Disconnected" and \
             (position.get("shift_state") is None or position.get("shift_state") == "P"):
-        return current_time() + timedelta(minutes=5)
+        return current_time() + timedelta(minutes=10)
     return current_time() + timedelta(seconds=15)
 
 
